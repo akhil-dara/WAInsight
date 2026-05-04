@@ -443,7 +443,7 @@ The Media Dashboard is **folder-shaped, never one giant `.html`** so V8 string l
 | Protobuf parsing | **protobuf** (used for some msgstore inner blobs) |
 | Optional: video thumbnails | **ffmpeg** on PATH |
 | Optional: PDF thumbnails | **PyMuPDF** (`pip install pymupdf`) |
-| Tested OS | Windows 10 / 11 (primary), macOS 12+, Ubuntu 22.04 |
+| Tested OS | Windows 10 / 11 (primary) |
 
 ---
 
