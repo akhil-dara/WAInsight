@@ -2,7 +2,7 @@
 
 <img src="logo.png" alt="WAInsight logo" width="120"/>
 
-# WAInsight
+# WAInsight - WhatsApp Forensic Analysis Suite
 
 ### A forensic analysis suite for already-acquired WhatsApp Android databases
 
@@ -149,7 +149,7 @@ On first run the launch screen asks you to either **create a new case** (point a
 
 ### System requirements
 
-- **OS:** Windows 10/11, macOS 12+, modern Linux
+- **OS:** Tested on Windows 11
 - **Python:** 3.10 or newer
 - **RAM:** 8 GB minimum, 16 GB recommended for cases with > 1 M messages
 - **Disk:** roughly 2× the size of the source `Media/` folder (for the read-only mirror + thumbnails + indexes)
