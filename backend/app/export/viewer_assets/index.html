@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>__CSS__</style>
+</head>
+<body>
+  <aside id="sidebar">
+    <div id="sidebarHeader">
+      <span class="brand">WAInsight</span>
+      <button id="openSearchBtn" title="Search all chats (Ctrl+K)">&#x1F50D;</button>
+      <button id="themeToggle" title="Toggle dark mode">&#x1F319;</button>
+    </div>
+    <!-- Tab strip: Conversations | Tagged.  Tagged tab is shown only
+         when this is a tagged-message export (manifest.isTaggedExport
+         truthy); the JS hides it otherwise. -->
+    <div id="sidebarTabs">
+      <button class="tab active" data-tab="convs">Conversations</button>
+      <button class="tab" data-tab="tagged" id="tabTagged" style="display:none">
+        &#x1F516; Tagged <span class="tab-count" id="taggedCount"></span>
+      </button>
+    </div>
+    <div id="sidebarSearch">
+      <input id="sidebarSearchInput" type="text" placeholder="Filter conversations&#x2026;">
+    </div>
+    <div id="convList"></div>
+    <div id="taggedList" style="display:none"></div>
+    <div id="manifestMeta" style="padding:6px 12px;font-size:10px;color:var(--text-meta);
+                                   border-top:1px solid var(--border-side);text-align:center"></div>
+  </aside>
+
+  <main id="main">
+    <div id="chatHeader" style="display:none"></div>
+    <!-- Per-conversation in-chat search bar (hidden until the
+         user clicks the search icon in the chat header). -->
+    <div id="convSearchBar" style="display:none">
+      <input id="convSearchInput" type="text"
+             placeholder="Search in this conversation&#x2026;">
+      <span id="convSearchCount" class="conv-search-count"></span>
+      <button id="convSearchPrev" class="conv-search-nav" title="Previous match (Shift+Enter)">&#x25B2;</button>
+      <button id="convSearchNext" class="conv-search-nav" title="Next match (Enter)">&#x25BC;</button>
+      <button id="convSearchClose" class="conv-search-nav" title="Close (Esc)">&#x2715;</button>
+    </div>
+    <div id="chatArea" style="display:none">
+      <div id="stickyDate" class="sticky-date"></div>
+      <div id="scrollContent"><div id="messages"></div></div>
+      <button id="scrollTopFab" class="scroll-fab top" title="Jump to top (oldest)">&#x21E1;</button>
+      <button id="scrollBottomFab" class="scroll-fab bottom" title="Jump to bottom (latest)">&#x21E3;</button>
+    </div>
+    <div id="emptyState">
+      <div class="icon">&#x1F4AC;</div>
+      <div class="title">__TITLE__</div>
+      <div class="hint">Select a conversation from the sidebar, or press <b>Ctrl+K</b> to search across all chats.</div>
+      <!-- Populated at init from manifest.caseInfo so the analyst sees
+           which case this bundle came from on the home screen. -->
+      <div id="emptyCaseCard" class="empty-case-card" style="display:none"></div>
+    </div>
+  </main>
+
+  <div id="searchPalette">
+    <div class="palette-box">
+      <input id="paletteInput" class="palette-input" type="text" placeholder="Search in all chats&#x2026;">
+      <div id="paletteResults" class="palette-results"></div>
+    </div>
+  </div>
+
+  <div id="forensicPanel">
+    <div class="fp-box">
+      <div class="fp-header">
+        <div class="fp-title">Forensic message detail</div>
+        <button class="fp-close" id="fpClose">&#x2715;</button>
+      </div>
+      <div class="fp-body" id="fpBody"></div>
+    </div>
+  </div>
+
+  <div id="lightbox">
+    <div class="lb-topbar">
+      <div class="lb-name" id="lbName"></div>
+      <div class="lb-meta" id="lbMeta"></div>
+      <button class="lb-btn" id="lbGoto" title="Jump to this message in the chat">&#x21A9; Go to msg</button>
+      <a class="lb-btn" id="lbDownload" href="#" download>&#x21E9; Download</a>
+      <button class="lb-btn" id="lbClose">&#x2715; Close</button>
+    </div>
+    <div class="lb-stage" id="lbStage">
+      <button class="lb-nav lb-prev" id="lbPrev">&#x25C0;</button>
+      <button class="lb-nav lb-next" id="lbNext">&#x25B6;</button>
+      <div class="lb-zoombar">
+        <button id="lbZoomOut" title="Zoom out (-)">&#x2212;</button>
+        <span id="lbZoomLevel">100%</span>
+        <button id="lbZoomIn" title="Zoom in (+)">+</button>
+        <button id="lbZoomFit" title="Reset zoom (0)">&#x21BB;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manifest is loaded first (sets window.__MANIFEST) -->
+  <script src="data/manifest.js"></script>
+  <!-- Viewer code -->
+  <script>__JS__</script>
+</body>
+</html>

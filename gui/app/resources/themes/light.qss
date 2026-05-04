@@ -1,0 +1,578 @@
+/* WAInsight - Vibrant Light Theme */
+/* Clean, modern, eye-catching professional theme   */
+
+/* ============================================= */
+/* GLOBAL                                        */
+/* ============================================= */
+
+QMainWindow {
+    background-color: #f0f2f5;
+}
+
+QWidget {
+    color: #1b1b1b;
+}
+
+/* ============================================= */
+/* SIDEBAR                                       */
+/* ============================================= */
+
+QFrame#sidebar {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #ffffff, stop:1 #f8f9fa);
+    border-right: 1px solid #e0e0e0;
+}
+
+QFrame#sidebarTitleFrame {
+    background-color: #00897b;
+    border-bottom: 1px solid #00796b;
+}
+
+QLabel#sidebarTitle {
+    color: #ffffff;
+    font-weight: bold;
+}
+
+QListWidget#sidebarList {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    padding: 4px 0px;
+}
+
+QListWidget#sidebarList::item {
+    padding: 9px 16px;
+    border-radius: 0px;
+    color: #546e7a;
+    border-left: 3px solid transparent;
+    font-size: 10pt;
+}
+
+QListWidget#sidebarList::item:selected {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 rgba(0, 137, 123, 0.12), stop:1 rgba(0, 137, 123, 0.04));
+    border-left: 3px solid #00897b;
+    color: #00695c;
+    font-weight: bold;
+}
+
+QListWidget#sidebarList::item:hover:!selected {
+    background-color: rgba(0, 0, 0, 0.04);
+    color: #37474f;
+}
+
+/* ============================================= */
+/* TABLES                                        */
+/* ============================================= */
+
+QTableView {
+    gridline-color: #f0f0f0;
+    alternate-background-color: #fafbfc;
+    selection-background-color: rgba(0, 137, 123, 0.1);
+    selection-color: #1b1b1b;
+    border: none;
+    font-size: 12px;
+    background-color: #ffffff;
+}
+
+QTableView::item {
+    padding: 6px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+QTableView::item:selected {
+    background-color: rgba(0, 137, 123, 0.12);
+}
+
+QTableView::item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+QHeaderView::section {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #ffffff, stop:1 #f8f9fa);
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid #00897b;
+    font-weight: bold;
+    font-size: 11px;
+    color: #37474f;
+}
+
+QHeaderView::section:hover {
+    background-color: rgba(0, 137, 123, 0.06);
+    color: #00695c;
+}
+
+QHeaderView::section:pressed {
+    background-color: rgba(0, 137, 123, 0.1);
+}
+
+/* ============================================= */
+/* SEARCH INPUTS                                 */
+/* ============================================= */
+
+QLineEdit {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #d0d7de;
+    background-color: #ffffff;
+    color: #1b1b1b;
+    font-size: 12px;
+    selection-background-color: rgba(0, 137, 123, 0.25);
+}
+
+QLineEdit:focus {
+    border-color: #00897b;
+    background-color: #ffffff;
+}
+
+QLineEdit::placeholder {
+    color: #999;
+}
+
+/* ============================================= */
+/* FILTER BUTTONS                                */
+/* ============================================= */
+
+QPushButton[checkable="true"] {
+    padding: 6px 16px;
+    border-radius: 16px;
+    border: 1px solid #d0d7de;
+    font-size: 11px;
+    color: #555;
+    background: #ffffff;
+}
+
+QPushButton[checkable="true"]:checked {
+    background: rgba(0, 137, 123, 0.12);
+    border-color: #00897b;
+    color: #00695c;
+    font-weight: bold;
+}
+
+QPushButton[checkable="true"]:hover:!checked {
+    background-color: #f6f8fa;
+    border-color: #b0bec5;
+    color: #37474f;
+}
+
+/* ============================================= */
+/* REGULAR BUTTONS                               */
+/* ============================================= */
+
+QPushButton {
+    background-color: #00897b;
+    border: 1px solid #00796b;
+    border-radius: 6px;
+    padding: 6px 16px;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #00796b;
+    border-color: #00695c;
+}
+
+QPushButton:pressed {
+    background-color: #00695c;
+}
+
+QPushButton:disabled {
+    background-color: #e0e0e0;
+    border-color: #ccc;
+    color: #999;
+}
+
+/* ============================================= */
+/* SCROLL BARS                                   */
+/* ============================================= */
+
+QScrollBar:vertical {
+    width: 8px;
+    background: transparent;
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar:horizontal {
+    height: 8px;
+    background: transparent;
+}
+
+QScrollBar::handle:horizontal {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    min-width: 30px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* ============================================= */
+/* STATUS BAR                                    */
+/* ============================================= */
+
+QStatusBar {
+    background: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    padding: 2px 8px;
+    color: #667781;
+}
+
+/* ============================================= */
+/* TOOL TIPS                                     */
+/* ============================================= */
+
+QToolTip {
+    background-color: #ffffff;
+    color: #1b1b1b;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+}
+
+/* ============================================= */
+/* STAT CARDS                                    */
+/* ============================================= */
+
+QFrame#statCard {
+    background: #ffffff;
+    border: 1px solid #e8eaed;
+    border-radius: 8px;
+}
+
+QFrame#statCard:hover {
+    background: #f8fffe;
+    border-color: #b2dfdb;
+}
+
+/* ============================================= */
+/* TAB WIDGET                                    */
+/* ============================================= */
+
+QTabWidget::pane {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QTabBar::tab {
+    padding: 8px 20px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #999;
+    font-size: 11px;
+    background: transparent;
+}
+
+QTabBar::tab:selected {
+    border-bottom-color: #00897b;
+    color: #00695c;
+    font-weight: bold;
+}
+
+QTabBar::tab:hover:!selected {
+    color: #555;
+    border-bottom-color: rgba(0, 137, 123, 0.3);
+}
+
+/* ============================================= */
+/* SPLITTER                                      */
+/* ============================================= */
+
+QSplitter::handle {
+    background: #e0e0e0;
+}
+
+QSplitter::handle:hover {
+    background: #00897b;
+}
+
+/* ============================================= */
+/* COMBO BOX                                     */
+/* ============================================= */
+
+QComboBox {
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 5px 12px;
+    background-color: #ffffff;
+    color: #1b1b1b;
+}
+
+QComboBox:hover {
+    border-color: #00897b;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    border: 1px solid #d0d7de;
+    selection-background-color: rgba(0, 137, 123, 0.12);
+    color: #1b1b1b;
+}
+
+/* ============================================= */
+/* CALENDAR WIDGET                               */
+/* The default Qt QCalendarWidget on Windows     */
+/* inherits the global QTableView style which    */
+/* breaks the day grid layout — applying an      */
+/* explicit, clean style here so the calendar    */
+/* popup attached to QDateEdit always renders    */
+/* with a proper 7-column day grid.              */
+/* ============================================= */
+
+QCalendarWidget {
+    background-color: #ffffff;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+}
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #00897b;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0 6px;
+}
+QCalendarWidget QToolButton {
+    color: #ffffff;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 10px;
+    margin: 4px 2px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 22px;
+    max-height: 28px;
+}
+QCalendarWidget QToolButton:hover {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+QCalendarWidget QToolButton:pressed {
+    background-color: rgba(255, 255, 255, 0.32);
+}
+QCalendarWidget QToolButton::menu-indicator {
+    image: none;
+    width: 0;
+    height: 0;
+}
+QCalendarWidget QToolButton::menu-button {
+    border: none;
+    background: transparent;
+    width: 0;
+}
+/* Prev / next month arrows — keep them tight; the default arrow
+   icons sit on a coloured backdrop so we render them as bold ASCII
+   chars via the toolbutton text. */
+QCalendarWidget QToolButton#qt_calendar_prevmonth,
+QCalendarWidget QToolButton#qt_calendar_nextmonth {
+    qproperty-icon: none;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+    min-width: 28px;
+    max-width: 32px;
+    padding: 2px 6px;
+}
+QCalendarWidget QSpinBox {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    padding: 0 4px;
+    margin: 4px 2px;
+    min-height: 22px;
+    max-height: 26px;
+}
+QCalendarWidget QSpinBox:hover {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+QCalendarWidget QMenu {
+    background-color: #ffffff;
+    color: #1b1b1b;
+    border: 1px solid #d0d7de;
+}
+/* The day-grid view — explicit override of the global
+   QTableView styling that would otherwise inflate cell
+   padding and add per-cell border-bottoms (which together
+   collapse the calendar into a few stray digits). */
+QCalendarWidget QAbstractItemView {
+    background-color: #ffffff;
+    color: #1b1b1b;
+    selection-background-color: #00897b;
+    selection-color: #ffffff;
+    alternate-background-color: #ffffff;
+    outline: none;
+    border: none;
+    gridline-color: transparent;
+    show-decoration-selected: 1;
+}
+/* Critical: override the global QTableView::item padding
+   (6px 12px) + border-bottom which were sized for the main
+   tables but completely break a 7-column day grid. */
+QCalendarWidget QAbstractItemView::item {
+    padding: 0;
+    border: none;
+    border-bottom: none;
+    background: transparent;
+    min-height: 26px;
+}
+QCalendarWidget QAbstractItemView::item:hover {
+    background-color: rgba(0, 137, 123, 0.10);
+    border: none;
+}
+QCalendarWidget QAbstractItemView::item:selected {
+    background-color: #00897b;
+    color: #ffffff;
+}
+QCalendarWidget QAbstractItemView:enabled {
+    color: #1b1b1b;
+}
+QCalendarWidget QAbstractItemView:disabled {
+    color: #b0bec5;
+}
+/* Day-of-week headers — overrides the global
+   QHeaderView::section which would otherwise add a
+   2px green border-bottom that visually merges the
+   header row into the day grid. */
+QCalendarWidget QHeaderView {
+    background-color: #f5f5f5;
+    border: none;
+}
+QCalendarWidget QHeaderView::section {
+    background: #f5f5f5;
+    color: #455a64;
+    padding: 6px 4px;
+    border: none;
+    border-bottom: 1px solid #e0e7ed;
+    font-weight: 600;
+    font-size: 10px;
+    min-height: 22px;
+    text-transform: uppercase;
+}
+QCalendarWidget QHeaderView::section:hover {
+    background-color: #f5f5f5;
+    color: #455a64;
+}
+
+/* ============================================= */
+/* GROUP BOX                                     */
+/* ============================================= */
+
+QGroupBox {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-top: 12px;
+    padding-top: 16px;
+    font-weight: bold;
+    color: #546e7a;
+    background: #ffffff;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+    color: #00695c;
+}
+
+/* ============================================= */
+/* PROGRESS BAR                                  */
+/* ============================================= */
+
+QProgressBar {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #f0f2f5;
+    text-align: center;
+    color: #1b1b1b;
+    font-size: 10px;
+}
+
+QProgressBar::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #00897b, stop:1 #26a69a);
+    border-radius: 3px;
+}
+
+/* ============================================= */
+/* DATE EDIT                                     */
+/* ============================================= */
+
+QDateEdit, QDateTimeEdit {
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 5px 10px;
+    background-color: #ffffff;
+    color: #1b1b1b;
+}
+
+QDateEdit:focus, QDateTimeEdit:focus {
+    border-color: #00897b;
+}
+
+/* ============================================= */
+/* SCROLL AREA                                   */
+/* ============================================= */
+
+QScrollArea {
+    background: #f0f2f5;
+    border: none;
+}
+
+/* ============================================= */
+/* LIST VIEW (Chat bubbles area)                 */
+/* ============================================= */
+
+QListView {
+    background-color: #efeae2;
+    border: none;
+}
+
+/* ============================================= */
+/* TEXT EDIT                                      */
+/* ============================================= */
+
+QTextEdit {
+    background-color: #ffffff;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    color: #1b1b1b;
+    selection-background-color: rgba(0, 137, 123, 0.25);
+}
+
+QTextEdit:focus {
+    border-color: #00897b;
+}
+
+/* ============================================= */
+/* LABELS                                        */
+/* ============================================= */
+
+QLabel {
+    color: #1b1b1b;
+}

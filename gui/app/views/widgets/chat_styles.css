@@ -1,0 +1,1834 @@
+/* WAInsight — Chat Styles (Light default) */
+
+:root {
+  --bg-main: #efeae2;
+  --bg-sent: #d9fdd3;
+  --bg-recv: #ffffff;
+  --bg-system: rgba(255,255,255,0.92);
+  --bg-date: #ffffff;
+  --bg-quote-sent: rgba(0,0,0,0.06);
+  --bg-quote-recv: rgba(0,0,0,0.05);
+  --border-quote: #06cf9c;
+  --text-primary: #111b21;
+  --text-secondary: #667781;
+  --text-meta: #667781;
+  --text-system: #54656f;
+  --accent: #008069;
+  --link: #027eb5;
+  --tick-default: #8696a0;
+  --tick-read: #53bdeb;
+  --ghost-bg: rgba(211,47,47,0.08);
+  --ghost-text: #d32f2f;
+  --star-color: #f9a825;
+  --tagged-border: #ef5350;
+  --tail-sent: #d9fdd3;
+  --tail-recv: #ffffff;
+  --avatar-size: 28px;
+  --shadow-bubble: 0 1px 0.5px rgba(11,20,26,0.08);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+/* Dark theme */
+body.dark {
+  --bg-main: #0b141a;
+  --bg-sent: #005c4b;
+  --bg-recv: #202c33;
+  --bg-system: rgba(0,188,212,0.06);
+  --bg-date: #182229;
+  --bg-quote-sent: rgba(0,0,0,0.18);
+  --bg-quote-recv: rgba(0,0,0,0.18);
+  --border-quote: #00a884;
+  --text-primary: #e9edef;
+  --text-secondary: rgba(255,255,255,0.6);
+  --text-meta: rgba(255,255,255,0.45);
+  --text-system: rgba(255,255,255,0.5);
+  --accent: #00a884;
+  --link: #53bdeb;
+  --tick-default: rgba(255,255,255,0.35);
+  --tick-read: #53bdeb;
+  --ghost-bg: rgba(255,120,120,0.12);
+  --ghost-text: #ff7878;
+  --star-color: #ffd54f;
+  --tail-sent: #005c4b;
+  --tail-recv: #202c33;
+  --shadow-bubble: none;
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---- Chat area (virtual scroll container) ---- */
+#chatArea {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 48px 4px 56px;
+  overscroll-behavior: contain;
+  /* Disable the browser's scroll-anchoring. Otherwise, when bubble heights
+   * grow (image loads, tall payment cards measure) Chromium auto-shifts
+   * scrollTop to keep the same content visually stable. That shifts the
+   * user AWAY FROM THE BOTTOM — reproduced in _scroll_harness as a 473 px
+   * gap where "opened at 1390, can't scroll to 1406". We do our own
+   * anchoring via _findScrollAnchor / _restoreScrollAnchor; the browser's
+   * fights ours. */
+  overflow-anchor: none;
+}
+#chatArea * { overflow-anchor: none; }
+#scrollContent {
+  position: relative;
+  /* height set by JS: totalCount * 52px */
+}
+#messages {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+  contain: layout style;  /* isolate from scrollContent reflows */
+  /* transform set by JS: translateY(firstIdx * 52px) */
+}
+/* FLAT RENDER MODE — no virtualization, browser handles everything natively.
+   Toggled by JS by adding .flat-render to #chatArea when totalCount is small
+   enough that rendering all messages in one DOM pass is fine (memory-wise
+   200K msgs ≈ 50-200 MB of DOM, well within budget).  In this mode there is
+   no translateY math, no coordinate drift between estimates and reality, and
+   scrollTop maps directly to content — so the "blank viewport during fast
+   scroll" failure mode is architecturally impossible. */
+#chatArea.flat-render #messages {
+  position: static;
+  will-change: auto;
+  contain: none;
+}
+#chatArea.flat-render #scrollContent {
+  /* Natural content height — don't constrain via JS */
+  height: auto !important;
+  min-height: 100%;
+}
+/* In flat mode, OVERRIDE the content-visibility: auto on .msg so real
+   messages near the scroll position are never "skipped" by the browser.
+   For a 131K-msg chat scrolled to the bottom (8.6 M px), content-visibility
+   combined with huge scroll offsets produced a blank viewport for some users.
+   Rendering all .msg elements fully costs us nothing when most are empty
+   tombstones — Chrome handles 131K empty divs fine. */
+#chatArea.flat-render .msg {
+  content-visibility: visible;
+}
+/* Re-enable the BROWSER's own overflow anchoring in flat/windowed modes.
+   In the old virtualized mode we disabled it because our manual anchor code
+   (translateY + _restoreScrollAnchor) conflicted with the browser's.
+   In flat/windowed modes there's no manual anchor — the browser's native
+   overflow-anchor is exactly what we want so tile-arrival DOM mutations
+   above the viewport keep the visible content stable. */
+#chatArea.flat-render,
+#chatArea.flat-render * ,
+#chatArea.flat-windowed,
+#chatArea.flat-windowed * {
+  overflow-anchor: auto;
+}
+/* FLAT MODE tombstone — empty div with natural 48px height.  No background
+   (used to have a gradient stripe, but for 131K+ that means 131K gradient
+   instances in memory; not worth it).  Just empty space so the scroll bound
+   is proportional to message count. */
+#chatArea.flat-render .msg.tmb {
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  contain: none;
+}
+
+/* ============ WINDOWED FLAT MODE (large chats) ============
+   Top and bottom spacer divs give the browser the correct total scroll range
+   without needing to render every message.  Only ~WINDOW_SIZE real .msg
+   elements are actually in the DOM between the spacers. */
+#chatArea.flat-windowed #messages {
+  position: static;
+  will-change: auto;
+  contain: none;
+}
+#chatArea.flat-windowed #scrollContent {
+  height: auto !important;
+  min-height: 100%;
+}
+#chatArea.flat-windowed .msg {
+  content-visibility: visible;
+}
+#chatArea.flat-windowed .w-spacer {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  /* spacers are just empty space — don't try to paint them */
+  contain: strict;
+}
+/* Windowed-flat tombstone — kept at 48 px (matches AVG_MSG_H so the
+   scroll math stays consistent), but rendered with a faint skeleton
+   bubble + shimmer so the user sees that something is loading rather
+   than a blank cream void.  When the real message arrives the
+   tombstone's outerHTML is replaced wholesale, so the skeleton is
+   ephemeral by design. */
+#chatArea.flat-windowed .msg.tmb {
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  margin: 0;
+  background: transparent;
+  contain: none;
+  position: relative;
+}
+#chatArea.flat-windowed .msg.tmb::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 8px;
+  bottom: 8px;
+  width: 220px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04)   0%,
+    rgba(0, 0, 0, 0.08)  50%,
+    rgba(0, 0, 0, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: tmb-shimmer 1.4s linear infinite;
+}
+body.dark #chatArea.flat-windowed .msg.tmb::before {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04)   0%,
+    rgba(255, 255, 255, 0.10)  50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+}
+/* Alternate the placeholder side to mimic the rough back-and-forth of
+   a real chat (received bubbles on the left, sent bubbles on the
+   right) so scrolling through a loading zone doesn't look like a
+   single repeating block. */
+#chatArea.flat-windowed .msg.tmb:nth-child(odd)::before {
+  left: auto;
+  right: 16px;
+  width: 180px;
+}
+@keyframes tmb-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ---- "Unread messages" line marker ----
+   Inserted above the first unread message (id=_firstUnreadMsgId).  Plays the
+   same role as WhatsApp's "Unread messages" divider in the native app, but
+   since this is a forensic tool the definition is strict: the first message
+   with from_me=0 AND status<6 in the captured msgstore. */
+.unread-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 8px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tick-read, #06cf9c);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.unread-sep::before,
+.unread-sep::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--tick-read, #06cf9c);
+  opacity: 0.5;
+}
+.unread-sep span {
+  padding: 0 2px;
+  white-space: nowrap;
+}
+
+/* ---- Date separator ---- */
+.date-sep {
+  text-align: center;
+  margin: 10px 0 4px;
+}
+.date-sep span {
+  background: var(--bg-date);
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-card);
+  display: inline-block;
+  letter-spacing: -0.1px;
+}
+
+/* ---- Message row ---- */
+.msg {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 2px;
+  padding: 0 4px;
+  position: relative;
+  content-visibility: auto;            /* skip render for off-screen messages */
+  contain-intrinsic-size: auto 64px;   /* auto = cache measured size; 64px fallback */
+}
+.msg.sent {
+  justify-content: flex-end;
+  padding-left: 80px;
+}
+.msg.received {
+  justify-content: flex-start;
+  padding-right: 80px;
+}
+.msg.system { justify-content: center; margin: 4px 0; }
+
+/* ---- Avatar ---- */
+.avatar {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+  margin-right: 6px;
+  margin-top: 2px;
+  cursor: pointer;
+  user-select: none;
+}
+img.avatar-img {
+  object-fit: cover;
+  background: #ccc;
+}
+.avatar-spacer {
+  width: var(--avatar-size);
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+/* ---- Bubble ---- */
+.bubble {
+  max-width: 65%;
+  min-width: 90px;
+  padding: 5px 7px 5px 9px;
+  border-radius: 7.5px;
+  position: relative;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-shadow: var(--shadow-bubble);
+}
+.sent .bubble {
+  background: var(--bg-sent);
+  border-top-right-radius: 0;
+}
+.received .bubble {
+  background: var(--bg-recv);
+  border-top-left-radius: 0;
+}
+
+/* Bubble tails */
+.sent .bubble::after {
+  content: '';
+  position: absolute;
+  top: 0; right: -8px;
+  width: 0; height: 0;
+  border: 0 solid transparent;
+  border-width: 0 0 8px 8px;
+  border-color: transparent transparent transparent var(--tail-sent);
+}
+.received .bubble::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -8px;
+  width: 0; height: 0;
+  border: 0 solid transparent;
+  border-width: 0 8px 8px 0;
+  border-color: transparent var(--tail-recv) transparent transparent;
+}
+
+/* Continuation — no tail, round corners */
+.msg.cont .bubble::before,
+.msg.cont .bubble::after { display: none; }
+.msg.cont.sent .bubble { border-top-right-radius: 7.5px; }
+.msg.cont.received .bubble { border-top-left-radius: 7.5px; }
+
+/* ---- Sender ---- */
+.sender {
+  font-size: 12.8px;
+  font-weight: 600;
+  margin-bottom: 1px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.sender:hover { text-decoration: underline; }
+.sender-jid {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-left: 4px;
+}
+.sender-phone {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* ---- Text ---- */
+.text {
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+}
+.text a { color: var(--link); text-decoration: none; }
+.text a:hover { text-decoration: underline; }
+.text code {
+  background: rgba(128,128,128,0.12);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+  font-size: 0.88em;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---- Meta row (time + ticks) ----
+   Old CSS used `float: right` + `inline-flex` so the meta appeared inline
+   with the last line of plain-text bubbles.  That broke for tall/wide
+   content like payment cards / images / forwards — the meta-row floated
+   into the empty whitespace BESIDE the content instead of sitting under
+   it.  this as "see the time how it is shown?? it should
+   be shown top or bottom na properly?? see the empty space doesn't look
+   good the tile".
+   Switched to a block-level flex row right-aligned under the content. */
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  clear: both;
+  margin: 4px 0 -2px 0;
+  padding-top: 2px;
+  font-size: 12px;
+}
+.time {
+  color: var(--text-meta);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ticks { font-size: 12px; color: var(--tick-default); letter-spacing: -3px; }
+.ticks.read { color: var(--tick-read); }
+.ticks.played { color: var(--tick-read); }
+.ticks.failed { color: #e53935; letter-spacing: 0; font-size: 11px; }
+.ticks.pending { color: #999; letter-spacing: 0; font-size: 10px; }
+.star { color: var(--star-color); font-size: 11px; font-weight: bold; }
+.starred-border { border-left: 3px solid var(--star-color) !important; }
+.edited { color: var(--text-meta); font-size: 10px; font-style: italic; }
+.clickable-edit { cursor: pointer; text-decoration: underline dotted; }
+.clickable-edit:hover { color: var(--accent); }
+.reply-count-badge { display: flex; align-items: center; gap: 4px; padding: 4px 10px; margin-top: 4px; background: var(--quote-bg); border-radius: 8px; font-size: 10px; color: var(--accent); cursor: pointer; }
+.reply-count-badge:hover { background: var(--hover-bg); }
+.reply-count-icon { font-size: 12px; }
+.reply-count-label { font-weight: 600; }
+.reply-count-arrow { margin-left: auto; font-size: 14px; opacity: 0.6; }
+
+/* ---- Forensic timestamps ---- */
+.forensic-meta {
+  clear: both;
+  font-size: 10px;
+  color: var(--text-meta);
+  text-align: right;
+  margin-top: 0;
+  opacity: 0.65;
+  line-height: 1.3;
+}
+
+/* ---- Quote ---- */
+.quote {
+  border-left: 4px solid var(--border-quote);
+  border-radius: 7.5px;
+  padding: 5px 10px 5px 8px;
+  margin: 0 0 3px 0;
+  font-size: 12.5px;
+  max-height: 62px;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 1.3;
+}
+.sent .quote { background: var(--bg-quote-sent); }
+.received .quote { background: var(--bg-quote-recv); }
+.quote:hover { filter: brightness(0.95); }
+.quote .q-sender { font-weight: 600; font-size: 12px; margin-bottom: 1px; display: block; }
+.quote .q-text { color: var(--text-secondary); display: block; }
+.quote .q-type { font-style: italic; color: var(--text-secondary); }
+.quote .q-type-prefix { font-size: 11px; opacity: 0.8; }
+
+/* ---- Forwarded ---- */
+.fwd {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-style: italic;
+  margin-bottom: 1px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.fwd .fwd-score {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(233,30,99,0.08);
+  color: #c62828;
+  margin-left: 2px;
+}
+body.dark .fwd .fwd-score { background: rgba(239,83,80,0.12); color: #ef5350; }
+
+/* ---- Media ---- */
+.media-thumb {
+  min-width: 200px;
+  max-width: 330px;
+  max-height: 330px;
+  min-height: 80px;
+  background: rgba(0,0,0,0.04);
+  border-radius: 6px;
+  margin: 2px 0;
+  display: block;
+  cursor: pointer;
+  object-fit: cover;
+}
+.media-thumb:hover { opacity: 0.92; }
+
+/* GIF / Video / View-once overlay badges */
+.gif-container, .video-container, .image-container { position: relative; display: inline-block; cursor: pointer; margin: 2px 0; }
+/* Not-on-disk thumbnail: dim the image to hint it's not available locally */
+.gif-container.not-on-disk .media-thumb,
+.video-container.not-on-disk .media-thumb,
+.image-container.not-on-disk .media-thumb { filter: brightness(0.55) saturate(0.65); }
+/* Download overlay — gradient band at bottom with label */
+.dl-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.72));
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 20px 8px 8px; pointer-events: none; border-radius: 0 0 8px 8px;
+}
+.dl-overlay-missing { background: linear-gradient(transparent, rgba(160,0,0,0.55)); }
+.dl-overlay-label { color: #fff; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.9); letter-spacing: 0.3px; }
+.gif-badge { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.6); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+.video-play-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.5); color: #fff; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; pointer-events: none; }
+/* Placeholder fill while ChatVideoThumbWorker is extracting the
+   first frame from disk.  An <img src=""> would otherwise render
+   as a tiny broken-image glyph; force a min size + neutral
+   background so the bubble keeps its layout footprint and looks
+   like a thumbnail-in-progress instead of a broken element. */
+.media-thumb.video-thumb-pending {
+  background: linear-gradient(135deg, rgba(0,0,0,0.06), rgba(0,0,0,0.12));
+  min-width: 220px;
+  min-height: 160px;
+}
+body.dark .media-thumb.video-thumb-pending {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.08));
+}
+.view-once-badge { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.6); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+/* HD/SD quality badge */
+.quality-badge { position: absolute; bottom: 8px; right: 8px; padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; pointer-events: none; }
+.quality-hd { background: rgba(0,150,60,0.75); color: #fff; }
+.quality-sd { background: rgba(0,0,0,0.5); color: #ccc; }
+/* WhatsApp dual-quality send: marks media bubbles where the SD parent
+   is being rendered with the HD twin's bytes.  Sits next to the
+   HD/SD quality pill (slightly higher) so analyst sees both. */
+.hd-pair-badge {
+  position: absolute; bottom: 28px; right: 8px;
+  padding: 2px 7px; border-radius: 3px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  background: rgba(123, 31, 162, 0.85); color: #fff;
+  pointer-events: auto; cursor: pointer;
+  white-space: nowrap;
+}
+/* Distinct hue for the SD half (the parent — reactions / replies
+   live here) vs the HD half (the higher-res twin).  Both hues are
+   eye-catching enough that the analyst can scan a chat and spot
+   pair members without reading the badge text. */
+.hd-pair-badge.hd-pair-sd { background: rgba(33, 150, 243, 0.88); }
+.hd-pair-badge.hd-pair-hd { background: rgba(46, 125, 50, 0.88); }
+.hd-pair-badge:hover      { filter: brightness(1.15); }
+/* "⤓ Download HD" pill — sits just above the hd-pair-badge so
+   they don't collide.  Orange to flag the user-actionable
+   nature ("click me to fetch the bytes"). */
+.dl-hd-badge {
+  position: absolute; bottom: 50px; right: 8px;
+  padding: 2px 7px; border-radius: 3px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  background: rgba(230, 81, 0, 0.92); color: #fff;
+  pointer-events: auto; cursor: pointer;
+  white-space: nowrap;
+}
+.dl-hd-badge:hover { filter: brightness(1.15); }
+/* "Live" / Motion Photo badge — clickable, plays the 1-2 s motion
+   clip via the MediaViewer.  Sits top-left of the bubble so it
+   doesn't collide with HD/SD / provenance pills on the right. */
+.motion-badge {
+  position: absolute; top: 8px; left: 8px;
+  padding: 3px 8px; border-radius: 12px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  background: rgba(0,0,0,0.55); color: #fff;
+  pointer-events: auto; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.motion-badge:hover { background: rgba(229, 57, 53, 0.85); }
+
+/* ---- Poll image options (channel polls with images per option) ---- */
+.poll-card.has-images .poll-option { padding-left: 4px; }
+.poll-card.has-images .poll-option.has-img {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+}
+.poll-opt-img {
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+  border-radius: 6px; object-fit: cover;
+  border: 1px solid rgba(127,127,127,0.25);
+  cursor: zoom-in; flex-shrink: 0;
+}
+.poll-opt-img:hover { border-color: rgba(0,150,60,0.6); }
+.poll-card.has-images .poll-bar-bg { flex: 1; }
+
+/* Provenance badge — top-right corner of the media bubble.
+   Distinguishes hash-linked / tool-recovered / CDN-only / etc. so an
+   analyst can scan the chat and immediately see which media is
+   forensically "as received" vs reconstructed.  Sits opposite the
+   quality (HD/SD) badge so they never overlap. */
+.prov-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+.prov-hash {
+  background: rgba(123, 31, 162, 0.92);   /* purple — hash-linked */
+  color: #fff;
+}
+.prov-hash-deleted {
+  background: rgba(230, 81, 0, 0.94);     /* amber/orange — originally received here, file deleted */
+  color: #fff;
+}
+.prov-orphan {
+  background: rgba(46, 125, 50, 0.94);    /* dark green — rescued from orphaned file */
+  color: #fff;
+}
+.prov-downloaded {
+  background: rgba(0, 137, 123, 0.92);    /* teal — tool-recovered */
+  color: #fff;
+}
+.prov-downloadable {
+  background: rgba(21, 101, 192, 0.92);   /* blue — on CDN, not yet downloaded */
+  color: #fff;
+}
+.prov-original {
+  background: rgba(46, 125, 50, 0.92);    /* green — original (rarely shown) */
+  color: #fff;
+}
+body.dark .prov-hash { background: rgba(186, 104, 200, 0.92); color: #fff; }
+body.dark .prov-hash-deleted { background: rgba(255, 138, 65, 0.94); color: #fff; }
+body.dark .prov-orphan { background: rgba(102, 187, 106, 0.94); color: #fff; }
+body.dark .prov-downloaded { background: rgba(38, 166, 154, 0.92); color: #fff; }
+body.dark .prov-downloadable { background: rgba(66, 165, 245, 0.92); color: #fff; }
+body.dark .prov-original { background: rgba(102, 187, 106, 0.92); color: #fff; }
+/* Document shared as image */
+.doc-as-image-wrap { position: relative; display: inline-block; margin: 2px 0; }
+.doc-info-bar { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 0 0 8px 8px; font-size: 11px; color: var(--text-secondary, #667781); }
+.doc-info-icon { font-size: 13px; }
+.doc-info-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-info-size { color: var(--text-secondary, #667781); font-size: 10px; white-space: nowrap; }
+.view-once-card {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.04); padding: 10px 14px; border-radius: 8px;
+  font-size: 12px; color: var(--text-secondary); font-style: italic;
+}
+.view-once-card .vo-icon { font-size: 18px; }
+.view-once-card .dl-arrow { cursor: pointer; color: var(--accent); font-style: normal; font-weight: 600; }
+.bot-meta-badge { font-size: 10px; color: var(--accent, #00a884); font-style: italic; margin-left: 4px; }
+.device-indicator { font-size: 8px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; font-weight: 600; vertical-align: middle; }
+.device-indicator.di-android { background: rgba(61,220,132,0.15); color: #2e7d32; }
+.device-indicator.di-iphone { background: rgba(33,150,243,0.15); color: #1565c0; }
+.device-indicator.di-web { background: rgba(255,152,0,0.15); color: #e65100; }
+
+.media-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.04);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin: 2px 0;
+}
+body.dark .media-badge { background: rgba(255,255,255,0.06); }
+
+.media-badge .icon { font-size: 18px; }
+
+/* Download badge */
+.download-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,165,0,0.08);
+  border: 1px dashed rgba(255,165,0,0.25);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #e67e22;
+  cursor: pointer;
+  margin: 2px 0;
+}
+.download-badge:hover { background: rgba(255,165,0,0.15); }
+.download-badge .dl-arrow { font-size: 14px; opacity: 0.8; }
+.media-badge.clickable { cursor: pointer; }
+.media-badge.clickable:hover { background: rgba(0,0,0,0.08); }
+body.dark .media-badge.clickable:hover { background: rgba(255,255,255,0.1); }
+
+/* ---- Document card ---- */
+.pdf-preview-wrap { max-width: 340px; border-radius: 8px 8px 0 0; overflow: hidden; margin-bottom: -2px; }
+.pdf-preview-wrap.clickable { cursor: pointer; }
+.pdf-preview-thumb { width: 100%; max-height: 280px; object-fit: contain; background: #f5f5f5; display: block; }
+body.dark .pdf-preview-thumb { background: rgba(255,255,255,0.04); }
+.doc-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 2px 0;
+  min-width: 240px;
+  max-width: 340px;
+}
+.pdf-preview-wrap + .doc-card { border-radius: 0 0 8px 8px; margin-top: 0; }
+body.dark .doc-card { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+.doc-card.clickable { cursor: pointer; }
+.doc-card.clickable:hover { background: rgba(0,0,0,0.07); }
+body.dark .doc-card.clickable:hover { background: rgba(255,255,255,0.1); }
+.doc-icon-wrap {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  background: rgba(0,128,105,0.1);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+body.dark .doc-icon-wrap { background: rgba(0,168,132,0.15); }
+.doc-icon { font-size: 22px; }
+.doc-info { flex: 1; min-width: 0; overflow: hidden; }
+.doc-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.doc-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.doc-action {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--text-secondary);
+  padding: 4px;
+  border-radius: 50%;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+}
+.doc-action.doc-dl {
+  cursor: pointer;
+  color: var(--accent);
+}
+.doc-action.doc-dl:hover { background: rgba(0,128,105,0.1); }
+
+/* Unavailable / undecrypted message */
+.msg-unavailable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.03);
+  color: #888;
+  font-size: 12px;
+  font-style: italic;
+  margin: 2px 0;
+}
+.msg-unavailable .lock-icon { font-size: 14px; }
+body.dark .msg-unavailable { background: rgba(255,255,255,0.04); color: #999; }
+
+/* File path + hash resolution info */
+.file-path-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 3px 0;
+  font-size: 9px;
+  color: #999;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+}
+.file-path-info .path-text {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+  line-height: 1.3;
+  font-size: 8.5px;
+}
+.file-path-info .hash-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(46,125,50,0.12);
+  color: #2e7d32;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 4px 0 2px;
+}
+body.dark .file-path-info { color: #777; }
+body.dark .file-path-info .hash-badge { background: rgba(76,175,80,0.1); color: #66bb6a; }
+.file-path-info .recovered-badge {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7;
+  font-size: 10px;
+  padding: 3px 10px;
+}
+body.dark .file-path-info .recovered-badge {
+  background: rgba(46,125,50,0.2);
+  color: #81c784;
+  border-color: rgba(76,175,80,0.3);
+}
+.file-path-info .hash-matched-file {
+  font-size: 9.5px;
+  color: #2e7d32;
+}
+.file-path-info .hash-matched-file b { font-weight: 600; }
+.file-path-info .hash-orig-path {
+  font-size: 9px;
+  color: #888;
+  font-style: italic;
+}
+.file-path-info .hash-fwd-chain {
+  display: block;
+  width: 100%;
+  font-size: 9px;
+  color: #e65100;
+  font-style: italic;
+  margin-top: 1px;
+}
+body.dark .file-path-info .hash-matched-file { color: #66bb6a; }
+body.dark .file-path-info .hash-orig-path { color: #666; }
+body.dark .file-path-info .hash-fwd-chain { color: #ffab40; }
+
+/* Inline download from server button */
+.download-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  margin: 3px 0;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #1976d2;
+  background: rgba(25,118,210,0.06);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.download-inline:hover { background: rgba(25,118,210,0.14); }
+.download-inline .dl-icon { font-size: 13px; }
+body.dark .download-inline { color: #42a5f5; background: rgba(66,165,245,0.08); }
+body.dark .download-inline:hover { background: rgba(66,165,245,0.16); }
+
+/* ---- Sticker ---- */
+.sticker-img {
+  max-width: 280px;
+  max-height: 280px;
+  min-width: 120px;
+  min-height: 120px;
+  margin: 2px 0;
+  display: block;
+  cursor: pointer;
+}
+.sticker-placeholder {
+  width: 120px; height: 120px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.04); border-radius: 12px;
+  font-size: 28px; color: #999; margin: 4px 0;
+}
+.msg.sticker-msg .bubble {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 2px;
+}
+.msg.sticker-msg .bubble::before,
+.msg.sticker-msg .bubble::after { display: none; }
+
+/* ---- Audio / voice card ---- */
+.audio-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 0;
+  cursor: pointer;
+  min-width: 220px;
+  max-width: 320px;
+  user-select: none;
+  position: relative;
+}
+.audio-card .play-btn {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--accent);
+}
+.audio-card .waveform {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.5px;
+  height: 30px;
+  position: relative;
+}
+.audio-card .waveform .bar {
+  width: 3px;
+  border-radius: 1.5px;
+  background: rgba(0,0,0,0.18);
+  transition: background 0.05s;
+}
+body.dark .audio-card .waveform .bar { background: rgba(255,255,255,0.25); }
+.audio-card .waveform .bar.filled { background: var(--accent); }
+.audio-card .duration {
+  font-size: 11px;
+  color: var(--text-meta);
+  flex-shrink: 0;
+  min-width: 34px;
+  text-align: right;
+}
+.audio-card.not-on-disk { opacity: 0.65; cursor: pointer; }
+.audio-card.not-on-disk:hover { opacity: 0.85; background: rgba(25,118,210,0.08); }
+.audio-dl-hint {
+  font-size: 10px; color: #1976d2; font-weight: 600;
+  padding-left: 6px; white-space: nowrap;
+}
+body.dark .audio-dl-hint { color: #64b5f6; }
+
+/* ---- Location card ---- */
+.loc-card {
+  background: rgba(0,128,105,0.06);
+  border: 1px solid rgba(0,128,105,0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 2px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+body.dark .loc-card { background: rgba(20,45,30,0.6); border-color: rgba(60,140,80,0.15); }
+.loc-card .loc-icon { font-size: 20px; flex-shrink: 0; }
+.loc-card .loc-info { flex: 1; min-width: 0; }
+.loc-card .loc-place { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.loc-card .loc-addr { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc-card .loc-coords { font-size: 10.5px; color: var(--text-meta); margin-top: 2px; }
+.loc-card .loc-coords a { color: var(--link); text-decoration: none; }
+.loc-card .loc-dur { font-size: 11px; color: var(--accent); font-weight: 400; }
+
+/* ---- Link preview card (WhatsApp-style: thumbnail on top) ---- */
+.link-card {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 8px;
+  margin: 2px 0 4px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+body.dark .link-card { background: rgba(15,25,32,0.6); border-color: rgba(255,255,255,0.06); }
+.link-card:hover { filter: brightness(0.97); }
+/* Link-preview thumbnail — render the og:image at its full native
+   aspect ratio, no cropping.  ``object-fit: cover`` inside a fixed
+   box would hide important parts of portrait thumbnails (a face
+   cropped to just hair, etc.); we let the card grow tall when the
+   og:image is portrait-shaped — preserving the entire
+   thumbnail is more useful for a forensic preview than visual
+   uniformity.  We still cap at ``max-height: 320px`` for huge
+   thumbnails so a single link card doesn't dominate the chat.  */
+.link-card .link-thumb {
+  width: 100%;
+  max-height: 320px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.03);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+body.dark .link-card .link-thumb { background: rgba(255,255,255,0.03); }
+.link-card .link-thumb img {
+  width: 100%;
+  height: auto;                /* preserve native aspect ratio */
+  max-height: 320px;
+  object-fit: contain;          /* fit inside the box, never crop */
+  display: block;
+}
+.link-card .link-info { padding: 6px 10px 8px; min-width: 0; overflow: hidden; }
+.link-card .link-domain { font-size: 10.5px; color: var(--text-meta); text-transform: uppercase;
+  letter-spacing: 0.3px; margin-bottom: 2px; }
+.link-card .link-title { font-size: 12.5px; font-weight: 500; color: var(--link);
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.link-card .link-desc { font-size: 11.5px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin-top: 2px; }
+
+/* ---- Reactions ---- */
+.reactions {
+  display: flex;
+  gap: 3px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+.reaction-pill {
+  background: rgba(0,0,0,0.05);
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.04);
+}
+body.dark .reaction-pill { background: rgba(255,255,255,0.08); border-color: transparent; }
+.reaction-pill:hover { filter: brightness(0.93); }
+.reaction-pill .r-count { font-size: 10.5px; color: var(--text-secondary); }
+/* Reaction wrapper — clickable to expand detail */
+.reactions-wrap { cursor: pointer; }
+/* Reaction detail inline panel */
+.reaction-detail-panel {
+  max-height: 0; overflow: hidden; transition: max-height 0.25s ease;
+  margin-top: 4px; padding: 0 2px;
+  max-height: 200px; overflow-y: auto;
+}
+.reaction-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 6px;
+}
+.reaction-row:hover { background: rgba(0,0,0,0.04); }
+.react-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 11px; font-weight: 600; flex-shrink: 0;
+}
+.react-info { flex: 1; min-width: 0; }
+.react-name { font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.react-phone { font-size: 10px; color: var(--text-secondary); }
+.react-ts { font-size: 10px; color: var(--text-secondary); opacity: 0.7; }
+.react-emoji { font-size: 18px; flex-shrink: 0; }
+
+/* ---- Comment thread (channel replies) ---- */
+.comment-thread {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; margin-top: 4px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  cursor: pointer; color: var(--accent); font-size: 12px;
+}
+.comment-thread:hover { background: rgba(0,0,0,0.03); border-radius: 0 0 8px 8px; }
+.comment-icon { font-size: 14px; }
+.comment-label { font-weight: 500; }
+.comment-arrow { font-size: 16px; opacity: 0.6; margin-left: auto; }
+
+/* ---- Poll card ---- */
+.poll-card {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 2px 0;
+}
+body.dark .poll-card { background: rgba(30,30,50,0.6); border-color: rgba(100,100,180,0.12); }
+.poll-card .poll-q { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.poll-card .poll-option { margin: 3px 0; border-radius: 4px; position: relative; overflow: hidden; }
+.poll-card .poll-bar-bg { background: rgba(0,0,0,0.04); border-radius: 4px; height: 24px; position: relative; }
+body.dark .poll-card .poll-bar-bg { background: rgba(255,255,255,0.05); }
+.poll-card .poll-bar-fill { background: rgba(0,128,105,0.18); height: 100%; border-radius: 4px; }
+body.dark .poll-card .poll-bar-fill { background: rgba(0,188,212,0.25); }
+.poll-card .poll-opt-text { position: absolute; top: 0; left: 8px; right: 36px;
+  height: 24px; line-height: 24px; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poll-card .poll-opt-count { position: absolute; top: 0; right: 8px;
+  height: 24px; line-height: 24px; font-size: 11px; color: var(--accent); font-weight: 600; }
+.poll-card .poll-footer { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+.poll-card .poll-total { font-weight: 500; }
+.poll-option.has-voters { cursor: pointer; }
+.poll-option.has-voters:hover { background: rgba(0,0,0,0.03); border-radius: 6px; }
+/* Voter dropdown panel — smooth animated inline expand */
+.poll-voter-panel {
+  max-height: 0; overflow: hidden; transition: max-height 0.25s ease;
+  padding: 0 4px; margin-top: 2px;
+}
+.poll-voter-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 6px;
+}
+.poll-voter-row:hover { background: rgba(0,0,0,0.04); }
+.poll-voter-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 11px; font-weight: 600; flex-shrink: 0;
+}
+.poll-voter-name { font-size: 12px; color: var(--text-primary); }
+
+/* ---- vCard ---- */
+.vcard-card {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+body.dark .vcard-card { background: rgba(25,35,42,0.7); border-color: rgba(255,255,255,0.06); }
+.vcard-card .vcard-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0,128,105,0.65);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #fff; flex-shrink: 0;
+}
+.vcard-card .vcard-info { flex: 1; min-width: 0; }
+.vcard-card .vcard-name { font-size: 13px; font-weight: 500; }
+.vcard-card .vcard-sub { font-size: 11.5px; color: var(--text-secondary); }
+.vcard-card .vcard-phone { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+.vcard-dl-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; padding: 4px 6px; border-radius: 4px;
+  color: var(--text-secondary); flex-shrink: 0; align-self: center;
+  transition: background 0.15s;
+}
+.vcard-dl-btn:hover { background: rgba(0,0,0,0.06); }
+body.dark .vcard-dl-btn:hover { background: rgba(255,255,255,0.08); }
+
+/* ---- Call card (styled with green accent) ---- */
+.call-card {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-left: 3px solid #2e7d32;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 4px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.call-card.call-synthesized {
+  border-left: 3px solid #e65100;
+  background: rgba(255,152,0,0.08);
+}
+body.dark .call-card.call-synthesized {
+  background: rgba(255,152,0,0.12);
+  border-left-color: #ff9800;
+}
+.call-synthetic-badge {
+  display: inline-block;
+  background: #ffecb3;
+  color: #bf360c;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+  border: 1px solid #ff9800;
+}
+body.dark .call-synthetic-badge {
+  background: rgba(255,152,0,0.25);
+  color: #ffab40;
+  border-color: #ff9800;
+}
+
+/* Origin chat pill — shown on reconstructed per-participant call
+   echoes so the analyst can see which group/community the original
+   call lived in and click through to that conversation. */
+.call-origin-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin: 4px 0 6px 0; padding: 4px 8px;
+  background: rgba(0,137,123,0.06);
+  border: 1px solid rgba(0,137,123,0.18);
+  border-radius: 6px;
+  font-size: 11.5px; line-height: 1.4;
+}
+.call-origin-icon { font-size: 13px; }
+.call-origin-label { color: var(--text-secondary); }
+.call-origin-name {
+  font-weight: 600; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 220px;
+}
+.call-origin-jump {
+  margin-left: auto;
+  background: #00897b; color: #ffffff;
+  border: none; border-radius: 4px;
+  padding: 3px 10px; font-size: 11px; font-weight: 600;
+  cursor: pointer;
+}
+.call-origin-jump:hover { background: #00695c; }
+body.dark .call-origin-row {
+  background: rgba(0,188,212,0.08);
+  border-color: rgba(0,188,212,0.20);
+}
+body.dark .call-origin-jump { background: #00bcd4; color: #0b141a; }
+body.dark .call-origin-jump:hover { background: #00acc1; }
+body.dark .call-card { background: rgba(20,35,45,0.7); border-color: rgba(255,255,255,0.06); border-left-color: #66bb6a; }
+.call-icon-wrap {
+  font-size: 22px; min-width: 38px; text-align: center; padding-top: 2px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.call-dir-badge {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.3px;
+  padding: 1px 6px; border-radius: 3px; white-space: nowrap;
+}
+.call-dir-out { background: rgba(46,125,50,0.1); color: #2e7d32; }
+.call-dir-in { background: rgba(25,118,210,0.1); color: #1976d2; }
+body.dark .call-dir-out { background: rgba(102,187,106,0.12); color: #66bb6a; }
+body.dark .call-dir-in { background: rgba(66,165,245,0.12); color: #42a5f5; }
+.call-body { flex: 1; min-width: 0; }
+
+/* Compact summary line */
+.call-summary {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0;
+  margin-bottom: 2px; line-height: 1.4;
+}
+.call-summary .call-type { font-size: 13px; font-weight: 600; }
+.call-summary .call-sep { color: var(--text-meta); margin: 0 4px; font-size: 11px; }
+.call-summary .call-part-count { font-size: 11.5px; color: var(--text-secondary); }
+.call-summary .call-duration { font-size: 11.5px; color: var(--text-secondary); font-weight: 400; }
+
+.call-result { font-size: 12px; color: var(--text-secondary); margin-bottom: 2px; }
+.call-result.call-accepted { color: #2e7d32; }
+.call-result.call-missed { color: #e53935; font-weight: 500; }
+.call-result.call-declined { color: #e53935; }
+.call-result.call-cancelled { color: #999; }
+body.dark .call-result.call-accepted { color: #66bb6a; }
+body.dark .call-result.call-missed { color: #ef5350; }
+body.dark .call-result.call-declined { color: #ef5350; }
+
+/* Collapsed participant preview */
+.call-parts-preview {
+  font-size: 11px; color: var(--text-secondary);
+  margin-top: 3px; line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Expand/collapse toggle */
+.call-expand-toggle {
+  font-size: 11px; color: var(--accent); cursor: pointer;
+  margin-top: 3px; font-weight: 500; user-select: none;
+}
+.call-expand-toggle:hover { text-decoration: underline; }
+
+/* Expandable participant list */
+.call-participants-list {
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+  margin-top: 4px;
+}
+
+/* Individual participant row with avatar */
+.call-participant-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 4px; border-radius: 6px;
+}
+.call-participant-row:hover { background: rgba(0,0,0,0.03); }
+body.dark .call-participant-row:hover { background: rgba(255,255,255,0.04); }
+.cp-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(0,128,105,0.55); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; flex-shrink: 0;
+}
+.cp-name {
+  flex: 1; min-width: 0; font-size: 12px; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cp-status { font-size: 13px; flex-shrink: 0; font-weight: 700; }
+.cp-joined { color: #2e7d32; }
+.cp-missed { color: #e53935; }
+.cp-declined { color: #e67e22; }
+body.dark .cp-joined { color: #66bb6a; }
+body.dark .cp-missed { color: #ef5350; }
+body.dark .cp-declined { color: #ffab40; }
+
+/* ---- System event ---- */
+.system-text {
+  background: var(--bg-system);
+  padding: 5px 14px;
+  border-radius: 7.5px;
+  font-size: 13px;
+  color: var(--text-system);
+  max-width: 80%;
+  text-align: center;
+  box-shadow: var(--shadow-card);
+}
+.system-ts {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* ---- Ghost ---- */
+/* Origination flags badges on message bubbles */
+.oflag-badge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  margin-left: 2px;
+  vertical-align: middle;
+  opacity: 0.7;
+}
+.oflag-multi { color: #0d47a1; }
+.oflag-eph   { color: #7b1fa2; }
+.oflag-sync  { color: #00695c; }
+
+.ghost-badge {
+  display: inline-block;
+  background: var(--ghost-bg);
+  color: var(--ghost-text);
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.ghost-label {
+  font-size: 9.5px;
+  color: var(--ghost-text);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-bottom: 1px;
+}
+
+/* ---- Tagged ---- */
+.msg.tagged .bubble { border-left: 3px solid var(--tagged-border); }
+.tag-flag { font-size: 10px; color: var(--tagged-border); }
+.msg.search-target .bubble { box-shadow: 0 0 0 2px #00bcd4; border-radius: 8px; }
+
+/* ---- Event card ---- */
+.event-card {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 2px 0;
+}
+body.dark .event-card { background: rgba(25,40,60,0.6); border-color: rgba(80,120,200,0.15); }
+.event-card .event-name { font-size: 13px; font-weight: 600; }
+.event-card .event-detail { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ---- Search highlight ---- */
+.search-hl { background: rgba(255,200,0,0.35); border-radius: 2px; padding: 0 1px; }
+
+/* ---- Scroll-to highlight (green-tinted WhatsApp flash) ---- */
+@keyframes pulse-hl {
+  0% { background-color: rgba(6,207,156,0.35); }
+  30% { background-color: rgba(6,207,156,0.22); }
+  100% { background-color: transparent; }
+}
+.msg.highlight-pulse { animation: pulse-hl 2.5s ease-out; border-radius: 8px; }
+
+/* ---- Return-to-reply floating button ---- */
+.return-btn {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(0,128,105,0.92);
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 120;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+.return-btn.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.return-btn:hover {
+  background: rgba(0,100,82,0.95);
+  box-shadow: 0 3px 16px rgba(0,0,0,0.3);
+}
+body.dark .return-btn {
+  background: rgba(0,168,132,0.9);
+}
+body.dark .return-btn:hover {
+  background: rgba(0,140,110,0.95);
+}
+
+/* ---- Mention ---- */
+.mention { color: var(--link); cursor: pointer; font-weight: 500; }
+.mention:hover { text-decoration: underline; }
+
+/* ---- Album ---- */
+.album-wrapper { margin: 2px 0; max-width: 340px; }
+.album-header {
+  font-size: 11px; color: var(--text-secondary, #667781);
+  padding: 4px 0; font-weight: 500;
+}
+.album-dl-all {
+  display: inline-block; background: var(--accent, #00a884); color: white;
+  padding: 1px 8px; border-radius: 10px; font-size: 10px; cursor: pointer;
+  margin-left: 6px; font-weight: 600;
+}
+.album-dl-all:hover { opacity: 0.85; }
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+}
+.album-item {
+  position: relative; cursor: pointer; border-radius: 4px; overflow: hidden;
+  aspect-ratio: 1; background: #f0f0f0;
+}
+.album-item img,
+.album-item video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.album-placeholder {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: #999; background: rgba(0,0,0,0.04);
+}
+.album-vid-badge {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: rgba(0,0,0,0.5); color: white; width: 32px; height: 32px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; pointer-events: none;
+}
+.album-disk-badge {
+  position: absolute; top: 4px; right: 4px; background: rgba(46,125,50,0.8);
+  color: white; font-size: 10px; width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+}
+.album-dl-badge {
+  position: absolute; bottom: 4px; right: 4px; background: var(--accent, #00a884);
+  color: white; font-size: 12px; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  font-weight: 700;
+}
+.album-dl-badge:hover { transform: scale(1.15); }
+
+/* Album-level forensic note (e.g. "expected 7, only 5 present, 2 missing") */
+.album-note {
+  display: inline-block;
+  font-size: 10.5px;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 0 0 4px 0;
+  line-height: 1.35;
+}
+
+/* Placeholder cell when album_children is empty but album_meta says
+   there should be N items - keeps the album visibly an N-cell post. */
+.album-item-placeholder {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.03),
+    rgba(0, 0, 0, 0.03) 6px,
+    rgba(0, 0, 0, 0.06) 6px,
+    rgba(0, 0, 0, 0.06) 12px
+  );
+  cursor: default;
+}
+
+/* Position label "47/100" - top-left corner of every album cell so the
+   analyst can identify a specific item in a 100-photo album exactly. */
+.album-pos-badge {
+  position: absolute;
+  top: 4px; left: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  pointer-events: none;
+  letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "+N more" overlay on the 9th cell when album has > 9 items.  Click to
+   expand the grid in place. */
+.album-more-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  z-index: 2;
+}
+.album-more-overlay:hover { background: rgba(0, 0, 0, 0.72); }
+
+/* "Collapse to 9" footer link below an expanded grid. */
+.album-footer {
+  margin-top: 4px;
+  text-align: right;
+  font-size: 11px;
+}
+.album-collapse-link {
+  cursor: pointer;
+  color: var(--accent, #00a884);
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.album-collapse-link:hover { background: rgba(0, 168, 132, 0.1); }
+
+/* Pulse the specific album cell the user came from when navigating
+   from media gallery. */
+@keyframes albumCellPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0.0); transform: scale(1.0); }
+  20%  { box-shadow: 0 0 0 4px rgba(0, 168, 132, 0.85); transform: scale(1.04); }
+  40%  { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0.0); transform: scale(1.0); }
+  60%  { box-shadow: 0 0 0 4px rgba(0, 168, 132, 0.85); transform: scale(1.04); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0.0); transform: scale(1.0); }
+}
+.album-item.album-cell-pulse {
+  animation: albumCellPulse 2.4s ease-in-out 1;
+  z-index: 5;
+  position: relative;
+}
+.album-item.album-cell-pulse .album-pos-badge {
+  background: var(--accent, #00a884);
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 7px;
+  font-weight: 700;
+}
+
+/* Outline the host album bubble briefly so the user sees the scope */
+@keyframes albumHostPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0); }
+  30%  { box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.6); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0); }
+}
+.msg.album-host-pulse {
+  animation: albumHostPulse 2.4s ease-in-out 1;
+}
+
+/* ---- Bot badge ---- */
+.bot-badge {
+  display: inline-block;
+  background: rgba(0,128,105,0.1);
+  color: var(--accent);
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-weight: 600;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.verified-badge {
+  display: inline-block;
+  background: #1da1f2;
+  color: white;
+  font-size: 9px;
+  width: 14px; height: 14px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 50%;
+  margin-left: 4px;
+  vertical-align: middle;
+  font-weight: 700;
+}
+.biz-badge {
+  display: inline-block;
+  font-size: 10px;
+  margin-left: 3px;
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+/* ---- Caption ---- */
+.caption { margin-top: 3px; }
+
+/* ---- Loading spinner (WhatsApp-style) ---- */
+#loadingSpinner {
+  display: none;
+  text-align: center;
+  padding: 12px 0 8px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+#loadingSpinner.visible { display: block; }
+#loadingSpinner .spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid rgba(0,0,0,0.1);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+body.dark #loadingSpinner .spinner {
+  border-color: rgba(255,255,255,0.1);
+  border-top-color: var(--accent);
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Scrollbar (wider, gallery-style) ---- */
+#chatArea::-webkit-scrollbar { width: 14px; }
+#chatArea::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); }
+#chatArea::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.22);
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  min-height: 40px;
+}
+#chatArea::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.35); background-clip: padding-box; }
+#chatArea::-webkit-scrollbar-thumb:active { background: rgba(0,0,0,0.45); background-clip: padding-box; }
+body.dark #chatArea::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+body.dark #chatArea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); background-clip: padding-box; }
+body.dark #chatArea::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); background-clip: padding-box; }
+
+/* ---- Sticky center date indicator (WhatsApp-style, persistent during scroll) ---- */
+.sticky-date {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-date);
+  color: var(--text-secondary);
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 110;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  box-shadow: var(--shadow-card);
+  letter-spacing: -0.1px;
+}
+
+/* ---- Side scroll position indicator (date + msg position) ---- */
+#scrollDate {
+  position: fixed;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  background: var(--accent);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  text-align: center;
+  line-height: 1.3;
+}
+#scrollDate .sd-date { font-weight: 600; font-size: 11.5px; }
+#scrollDate .sd-pos { font-size: 10px; opacity: 0.85; }
+#scrollDate.visible { opacity: 1; }
+
+/* ---- Forensic Info Panel ---- */
+#forensicPanel {
+  position: fixed;
+  top: 0; right: 0;
+  width: 420px; height: 100vh;
+  background: #fafafa;
+  border-left: 2px solid #ccc;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  font-size: 12px;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.12);
+}
+#forensicPanel.visible { transform: translateX(0); }
+.fp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: #075e54; color: #fff;
+  font-size: 13px; font-weight: 600;
+}
+.fp-header button {
+  background: none; border: none; color: #fff; font-size: 18px;
+  cursor: pointer; padding: 2px 6px; border-radius: 4px;
+}
+.fp-header button:hover { background: rgba(255,255,255,0.2); }
+.fp-body {
+  flex: 1; overflow-y: auto; padding: 8px 12px;
+}
+.fp-section {
+  margin-bottom: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.fp-title {
+  background: #e8f5e9;
+  padding: 5px 10px;
+  font-weight: 600;
+  font-size: 11px;
+  color: #2e7d32;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #c8e6c9;
+}
+.fp-row {
+  display: flex;
+  padding: 3px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 8px;
+  align-items: baseline;
+  line-height: 1.5;
+}
+.fp-row:last-child { border-bottom: none; }
+.fp-key {
+  color: #555;
+  font-weight: 600;
+  min-width: 100px;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.fp-val {
+  color: #222;
+  word-break: break-all;
+  font-size: 11px;
+}
+/* Info button on each message bubble */
+.msg-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(0,137,123,0.15);
+  border: 1px solid rgba(0,137,123,0.3);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  color: #00897b;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  font-style: italic;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.bubble:hover .msg-info-btn { opacity: 1; }
+.msg-info-btn:hover { opacity: 1 !important; background: rgba(0,128,105,0.25); color: #005c4b; transform: scale(1.1); }
+body.dark .msg-info-btn { background: rgba(0,168,132,0.15); border-color: rgba(0,168,132,0.25); color: #00a884; }
+body.dark .msg-info-btn:hover { background: rgba(0,168,132,0.35); color: #00d4a0; }
+
+/* ---- Tombstone placeholders (unloaded messages) ---- */
+.tombstone { pointer-events: none; }
+.tombstone-bubble {
+  background: var(--bg-recv);
+  min-height: 36px;
+  min-width: 180px;
+  max-width: 45%;
+  padding: 10px 14px;
+  border-radius: 7.5px;
+  box-shadow: var(--shadow-bubble);
+}
+.tombstone-line {
+  height: 10px;
+  background: rgba(0,0,0,0.06);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+body.dark .tombstone-line { background: rgba(255,255,255,0.06); }
+.tombstone-line.short { width: 40%; margin-bottom: 0; }
+
+/* Recovery badge */
+.recovery-badge {
+  font-size: 10px; color: #7c4dff; padding: 2px 6px; margin-top: 2px;
+  background: rgba(124,77,255,0.1); border-radius: 4px; display: inline-block;
+}
+body.dark .recovery-badge { color: #b388ff; background: rgba(179,136,255,0.15); }
+
+/* Status message badge (status@broadcast chat) */
+.status-badge {
+  font-size: 10px; color: #00897b; padding: 2px 8px; margin-top: 2px;
+  background: rgba(0,137,123,0.1); border-radius: 4px; display: inline-block;
+}
+body.dark .status-badge { color: #4db6ac; background: rgba(77,182,172,0.15); }
+.status-sender {
+  font-weight: 600; color: #00897b; font-size: 12px; margin-bottom: 2px;
+}
+body.dark .status-sender { color: #4db6ac; }

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<link rel="stylesheet" href="vendor/app.css">
+__UPLOT_CSS__
+</head>
+<body>
+<!-- ============================================================
+     WAInsight Media Dashboard — file:// offline forensic viewer.
+
+     Architecture (per the file:// research doc):
+       * folder-shaped artifact, NEVER one giant .html
+       * classic <script src> chunked data, no fetch/import/Worker(./)
+       * sharded <img src=thumbs/ab/cd/<sha>.jpg> for thumbnails
+       * bitset crossfilter for facets (sub-ms across 5 facets)
+       * hand-rolled virtual list with IntersectionObserver
+       * cascading filter counts ("flight-fare" style)
+     ============================================================ -->
+
+<!-- ===================== SIDEBAR ============================== -->
+<aside id="sidebar">
+  <div class="brand">
+    <span class="brand-mark">📊</span>
+    <span class="brand-title">WAInsight Media</span>
+  </div>
+  <div id="caseInfo" class="case-info"></div>
+
+  <!-- Tabs: filters | sharing | orphans -->
+  <nav class="tabbar" role="tablist">
+    <button class="tab active" data-tab="filters" role="tab">Filters</button>
+    <button class="tab" data-tab="sharing" role="tab">Most-shared</button>
+    <button class="tab" data-tab="orphans" role="tab" id="orphansTabBtn">Orphans</button>
+  </nav>
+
+  <!-- =================== FILTERS PANE ========================= -->
+  <div class="tab-pane active" data-pane="filters">
+    <div class="facet-section">
+      <h3>Search</h3>
+      <input type="search" id="searchBox"
+             placeholder="filename / caption / hash / sender JID…"
+             autocomplete="off" spellcheck="false">
+      <div id="searchHint" class="facet-hint"></div>
+    </div>
+
+    <div class="facet-section" id="facet-status">
+      <h3>Status <span class="counter" id="status-cnt"></span>
+        <button class="facet-clear" data-facet="status"
+                title="Clear status filter">✕</button></h3>
+      <div class="facet-list" id="status-list"></div>
+    </div>
+
+    <div class="facet-section" id="facet-conv">
+      <h3>Conversation <span class="counter" id="conv-cnt"></span>
+        <button class="facet-clear" data-facet="conv"
+                title="Clear conversation filter">✕</button></h3>
+      <input type="text" class="facet-search" data-facet="conv"
+             placeholder="filter conversations…">
+      <div class="facet-list scrollable" id="conv-list"></div>
+    </div>
+
+    <div class="facet-section" id="facet-sender">
+      <h3>Sender <span class="counter" id="sender-cnt"></span>
+        <button class="facet-clear" data-facet="sender"
+                title="Clear sender filter">✕</button></h3>
+      <input type="text" class="facet-search" data-facet="sender"
+             placeholder="filter senders…">
+      <div class="facet-list scrollable" id="sender-list"></div>
+    </div>
+
+    <div class="facet-section" id="facet-mime">
+      <h3>MIME type <span class="counter" id="mime-cnt"></span>
+        <button class="facet-clear" data-facet="mime"
+                title="Clear MIME filter">✕</button></h3>
+      <input type="text" class="facet-search" data-facet="mime"
+             placeholder="filter MIME types…">
+      <div class="facet-list scrollable" id="mime-list"></div>
+    </div>
+
+    <div class="facet-section" id="facet-ext">
+      <h3>Extension <span class="counter" id="ext-cnt"></span>
+        <button class="facet-clear" data-facet="ext"
+                title="Clear extension filter">✕</button></h3>
+      <input type="text" class="facet-search" data-facet="ext"
+             placeholder="filter extensions…">
+      <div class="facet-list scrollable" id="ext-list"></div>
+    </div>
+
+    <div class="facet-section" id="facet-size">
+      <h3>File size
+        <button class="facet-clear" data-facet="size"
+                title="Clear size filter">✕</button></h3>
+      <div class="size-range-row">
+        <input type="text" id="sizeMin" placeholder="min (e.g. 100KB)"
+               class="size-input" autocomplete="off">
+        <span class="size-sep">—</span>
+        <input type="text" id="sizeMax" placeholder="max (e.g. 5MB)"
+               class="size-input" autocomplete="off">
+      </div>
+      <div class="size-presets">
+        <button class="size-preset" data-min="0" data-max="102400">&lt;100KB</button>
+        <button class="size-preset" data-min="102400" data-max="1048576">100KB-1MB</button>
+        <button class="size-preset" data-min="1048576" data-max="10485760">1-10MB</button>
+        <button class="size-preset" data-min="10485760" data-max="">&gt;10MB</button>
+      </div>
+    </div>
+
+    <div class="facet-section">
+      <button id="resetBtn" class="reset-btn">↻ Reset all filters</button>
+    </div>
+  </div>
+
+  <!-- =================== MOST-SHARED PANE ===================== -->
+  <div class="tab-pane" data-pane="sharing">
+    <div class="facet-section">
+      <h3>Most-shared SHA-256
+        <span class="facet-hint">files appearing in 2+ chats</span></h3>
+      <div id="sharingList" class="sharing-list scrollable"></div>
+    </div>
+  </div>
+
+  <!-- =================== ORPHANS PANE ========================= -->
+  <div class="tab-pane" data-pane="orphans">
+    <div class="facet-section">
+      <h3>Orphan files
+        <span class="facet-hint">on disk, no surviving message</span></h3>
+      <div id="orphanFilter">
+        <input type="search" id="orphanSearch"
+               placeholder="filename / hash / folder…" autocomplete="off">
+      </div>
+      <div id="orphanList" class="orphan-list scrollable"></div>
+    </div>
+  </div>
+
+  <div class="footer-meta" id="footerMeta"></div>
+</aside>
+
+<!-- ===================== MAIN ================================ -->
+<main id="main">
+  <header id="topbar">
+    <div class="topbar-left">
+      <div class="result-count" id="resultCount">…</div>
+      <div class="filter-summary" id="filterSummary"></div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-stats" id="topbarStats"></div>
+      <select id="tzSelect" class="topbar-select" title="Timezone for displayed timestamps">
+        <option value="local">Local time</option>
+        <option value="utc">UTC</option>
+        <option value="-12">UTC-12</option>
+        <option value="-11">UTC-11</option>
+        <option value="-10">UTC-10 (HST)</option>
+        <option value="-9">UTC-9 (AKT)</option>
+        <option value="-8">UTC-8 (PT)</option>
+        <option value="-7">UTC-7 (MT)</option>
+        <option value="-6">UTC-6 (CT)</option>
+        <option value="-5">UTC-5 (ET)</option>
+        <option value="-4">UTC-4 (AT)</option>
+        <option value="-3">UTC-3</option>
+        <option value="-2">UTC-2</option>
+        <option value="-1">UTC-1</option>
+        <option value="0">UTC+0 (GMT)</option>
+        <option value="1">UTC+1 (CET)</option>
+        <option value="2">UTC+2 (EET)</option>
+        <option value="3">UTC+3 (MSK)</option>
+        <option value="4">UTC+4</option>
+        <option value="5">UTC+5</option>
+        <option value="5.5">UTC+5:30 (IST)</option>
+        <option value="6">UTC+6</option>
+        <option value="7">UTC+7</option>
+        <option value="8">UTC+8 (CST/SGT)</option>
+        <option value="9">UTC+9 (JST/KST)</option>
+        <option value="9.5">UTC+9:30 (ACST)</option>
+        <option value="10">UTC+10 (AEST)</option>
+        <option value="11">UTC+11</option>
+        <option value="12">UTC+12 (NZST)</option>
+        <option value="13">UTC+13</option>
+        <option value="14">UTC+14</option>
+      </select>
+      <select id="sortSelect" class="topbar-select" title="Sort">
+        <option value="ts:desc">Newest first</option>
+        <option value="ts:asc">Oldest first</option>
+        <option value="size:desc">Largest first</option>
+        <option value="size:asc">Smallest first</option>
+        <option value="share:desc">Most-shared SHA-256</option>
+        <option value="name:asc">File name (A → Z)</option>
+        <option value="conv:asc">By conversation</option>
+        <option value="status:asc">By status</option>
+      </select>
+      <button id="hideStickersBtn" class="topbar-btn"
+              title="Toggle sticker rows in the table">
+        <span class="topbar-btn-icon">🎨</span><span id="stickerBtnLabel">Hide stickers</span></button>
+      <button id="exportCsvBtn" class="topbar-btn"
+              title="Export current selection to CSV">⇩ CSV</button>
+      <button id="exportXlsxBtn" class="topbar-btn"
+              title="Export current selection to XLSX">⇩ XLSX</button>
+      <button id="exportHtmlBtn" class="topbar-btn"
+              title="Render a printable HTML mini-report of the selection">⇩ HTML</button>
+      <button id="copyHashesBtn" class="topbar-btn"
+              title="Copy all SHA-256 hashes in current selection">⎘ Hashes</button>
+    </div>
+  </header>
+
+  <!-- Date histogram (per-day counts; click+drag to filter) -->
+  <section id="histRow">
+    <div id="histLabel">Files per day</div>
+    <div id="histChart"></div>
+    <div id="histRange" class="hist-range"></div>
+    <button id="histClear" class="hist-clear" title="Clear date filter">✕ date</button>
+  </section>
+
+  <!-- Virtual list -->
+  <section id="listWrap">
+    <div id="listHeader" class="list-header">
+      <span class="col-thumb">Thumb</span>
+      <span class="col-name sortable" data-sort="name">File / caption</span>
+      <span class="col-meta sortable" data-sort="size">Type · Size</span>
+      <span class="col-status sortable" data-sort="status">Status</span>
+      <span class="col-hash sortable" data-sort="hash">SHA-256</span>
+      <span class="col-sender sortable" data-sort="sender">Sender</span>
+      <span class="col-conv sortable" data-sort="conv">Conversation</span>
+      <span class="col-time sortable" data-sort="ts">When</span>
+      <span class="col-shares sortable" data-sort="share">×N</span>
+    </div>
+    <div id="listScroll">
+      <div id="listSpacer">
+        <div id="listWindow"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Empty state -->
+  <section id="emptyState" style="display:none">
+    <div class="empty-icon">🔍</div>
+    <div class="empty-title">No files match the current filters</div>
+    <div class="empty-hint">Adjust the facets in the sidebar or click
+      <b>Reset all filters</b>.</div>
+  </section>
+</main>
+
+<!-- ===================== DETAIL FLYOUT ====================== -->
+<aside id="detail" style="display:none">
+  <div class="detail-head">
+    <div class="detail-title" id="detailTitle">Media detail</div>
+    <button id="detailClose" class="detail-close">✕</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</aside>
+
+<!-- ===================== EXPORT MODAL ======================= -->
+<div id="exportModal" class="modal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title" id="exportModalTitle">Export</div>
+      <button id="exportModalClose" class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="exportModalBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== LOADING OVERLAY ==================== -->
+<div id="loadOverlay">
+  <div class="overlay-card">
+    <div class="overlay-spinner"></div>
+    <div class="overlay-title">Loading dashboard…</div>
+    <div class="overlay-sub" id="overlaySub">Parsing metadata chunks</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     1. Manifest first — defines window.__MANIFEST = { … }
+     2. Each data chunk pushes rows into window.META[]
+     3. Optional orphans chunk pushes window.ORPHANS = [ … ]
+     4. uPlot vendored if available (for the histogram)
+     5. App last — initialises the UI when META is fully populated
+     ============================================================ -->
+<script src="data/manifest.js"></script>
+__CHUNK_TAGS__
+__UPLOT_JS__
+<script src="vendor/app.js"></script>
+</body>
+</html>
