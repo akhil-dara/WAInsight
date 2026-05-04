@@ -1,0 +1,118 @@
+# =====================================================================
+# WAInsight — WhatsApp Forensic Suite for Android
+# Python 3.10+ required
+# =====================================================================
+# Install:    python -m pip install -r requirements.txt
+#
+# Every package below is actually imported somewhere in the codebase.
+# Generated and audited by walking every .py file under backend/, gui/,
+# shared/ and the project root, then cross-referencing each top-level
+# import against the standard library so only third-party packages
+# remain.
+# =====================================================================
+
+
+# ── GUI framework ────────────────────────────────────────────────────
+# Qt 6 official Python bindings — every page, dialog, widget, and the
+# QWebEngineView chat renderer all live on PySide6.
+PySide6>=6.5.0
+
+# Material-style QSS theming (light + dark palette parity)
+qt-material>=2.14
+
+
+# ── Image processing ────────────────────────────────────────────────
+# Thumbnails, AVIF / WebP / JPEG-XL re-encode for the Media Dashboard,
+# avatar handling, decoding WhatsApp thumbnail blobs, etc.  PIL ≥ 12
+# ships AVIF and WebP support out of the box; older installs may need
+# pillow-heif explicitly for HEIC.
+Pillow>=10.0.0
+pillow-heif>=0.13.0          # HEIC / HEIF support (iPhone media)
+
+# Perceptual + difference image hashing for the Image Similarity page
+# (pHash / dHash / wHash) — works on top of NumPy + Pillow.
+imagehash>=4.3.1
+numpy>=1.24.0
+
+
+# ── SQLite ──────────────────────────────────────────────────────────
+# We use BOTH stdlib `sqlite3` (everyday queries) and APSW (advanced
+# features: virtual tables, custom collations, hot backup, raw cursors
+# for large windowed reads).  Schema introspection + the cross-page
+# cache layer rely on APSW directly.
+apsw>=3.45.0
+
+
+# ── Crypto ──────────────────────────────────────────────────────────
+# AES-CBC for view-once / encrypted CDN-attachment decrypt, AES-GCM for
+# the optional crypt14 / crypt15 backup decryption fallback in
+# gui/app/services/backup_decryptor.py.
+pycryptodome>=3.19.0
+
+
+# ── Document / PDF parsing ──────────────────────────────────────────
+# PDF first-page rendering for the Media Dashboard + the Media Viewer
+# preview pane.
+pymupdf>=1.23.0
+
+# Page-count + metadata extraction for shared PDFs in the media viewer.
+pypdf>=4.0.0
+
+# Word (.docx) preview support for shared documents in the media viewer.
+python-docx>=1.1.0
+
+
+# ── Spreadsheet export ──────────────────────────────────────────────
+# XLSX export from Tagged Messages, Documents, Calls, Group Info
+# (participants), Image Similarity match reports, etc.
+openpyxl>=3.1.0
+
+
+# ── Performance ─────────────────────────────────────────────────────
+# orjson is the fastest JSON encoder available — used by the chat
+# WebEngine bridge to serialise message payloads to the renderer.
+orjson>=3.9.0
+
+
+# ── Timezone handling ───────────────────────────────────────────────
+# Local-zone resolution (used by the View → Timezone menu and every
+# timestamp formatter).  ``tzlocal`` discovers the host TZ; ``tzdata``
+# ships the IANA database on Windows where the OS doesn't include it.
+tzlocal>=5.0
+tzdata
+
+
+# ── Conditional fallbacks ───────────────────────────────────────────
+# Python 3.9 does not bundle ``zoneinfo`` — pull the backport so the
+# import-with-try in gui/app/config.py succeeds.  No-op on 3.9+.
+backports.zoneinfo>=0.2.1; python_version < "3.9"
+
+
+# =====================================================================
+# OPTIONAL — uncomment if you need them
+# =====================================================================
+
+# Encrypted backup (crypt14 / crypt15) decryption pipeline.  Invoked
+# via ``python -m wa_crypt_tools.wadecrypt`` from inside the
+# backup_decryptor service.  Skip if you only ever ingest already-
+# decrypted msgstore.db files.
+# wa-crypt-tools>=0.1.18
+
+# WeasyPrint as an alternative PDF renderer.  WAInsight currently uses
+# QWebEngineView.printToPdf for all PDFs (Group Report, Contact Report)
+# so this is not required.  Listed for completeness.
+# weasyprint>=60.0
+
+
+# =====================================================================
+# SYSTEM-LEVEL (non-pip) dependencies
+# =====================================================================
+# These must be installed via the OS package manager / vendor binaries:
+#
+#   • ffmpeg          — needed for video frame extraction in the
+#                       Media Dashboard's thumbnail generator.  Must
+#                       be on PATH.  Skip if you never build the
+#                       Media Dashboard with video sources on disk.
+#                       https://ffmpeg.org/download.html
+#
+# =====================================================================
