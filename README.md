@@ -516,9 +516,7 @@ WAInsight/
 Currently planned (no firm dates):
 
 - **WhatsApp Business** support — the Business app uses a similar but distinct schema (extra columns for catalogue, orders, quick-replies, labels, business-profile metadata).  Adding a parallel ingester so cases mixing personal + Business accounts can be analysed in the same UI.
-- Server-mode ingestion (long-running process listening on a UNIX socket)
 - Optional GPU acceleration for the perceptual-hash search on very large cases
-- Timeline pivot (scroll any page → other pages snap to the same time window)
 
 Pull requests are welcome. The codebase is heavily commented in the doc-string-driven style — most files start with a multi-paragraph "why this exists" header so newcomers can find their feet quickly.
 
