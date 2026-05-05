@@ -216,3 +216,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# portable exe related .gitignore
+build/
+dist/
+build_venv/
+*.spec.bak
+logo.ico
+version_info.txt
+fix_webengine.py
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
