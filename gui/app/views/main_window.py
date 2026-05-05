@@ -300,13 +300,13 @@ class MainWindow(QMainWindow):
         except Exception:
             pass  # DB not ready yet
 
-    def _open_chat(self, conv_id: int, display_name: str) -> None:
+    def _open_chat(self, conv_id: int, display_name: str, search_keyword: str = "") -> None:
         """Open chat viewer for a conversation (from double-click)."""
         current = self._stack.currentWidget()
         if current and current is not self._chat_viewer:
             self._nav_stack.append(current)
             self._nav_forward.clear()
-        self._chat_viewer.load_conversation(conv_id, display_name)
+        self._chat_viewer.load_conversation(conv_id, display_name, search_keyword=search_keyword)
         self._stack.setCurrentWidget(self._chat_viewer)
 
     def _open_group_info(self, conv_id: int, display_name: str) -> None:
