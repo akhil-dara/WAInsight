@@ -14,6 +14,14 @@ Built for digital forensics teams, law-enforcement examiners, and incident respo
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license) [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](#tech-stack) [![PySide6](https://img.shields.io/badge/Qt-PySide6-41cd52.svg)](#tech-stack) [![Status: active](https://img.shields.io/badge/status-active-brightgreen.svg)]()
 
+[![GitHub stars](https://img.shields.io/github/stars/akhil-dara/WAInsight?style=social)](https://github.com/akhil-dara/WAInsight/stargazers) [![GitHub forks](https://img.shields.io/github/forks/akhil-dara/WAInsight?style=social)](https://github.com/akhil-dara/WAInsight/network/members) [![Visitors](https://visitor-badge.laobi.icu/badge?page_id=akhil-dara.WAInsight&left_text=Visitors)](https://github.com/akhil-dara/WAInsight)
+
+### Support development
+
+[![Sponsor akhil-dara](https://img.shields.io/badge/Sponsor-akhil--dara-EA4AAA?logo=githubsponsors&logoColor=white&style=for-the-badge)](https://github.com/sponsors/akhil-dara)
+
+<iframe src="https://github.com/sponsors/akhil-dara/card" title="Sponsor akhil-dara" height="225" width="600" style="border: 0;"></iframe>
+
 </div>
 
 ---
@@ -246,22 +254,20 @@ Every item below was personally designed and built into the tool — this is the
 | 30 | **Synthetic voice-chat / orphan-call reconstruction** — calls that have no `message` row in their conversation get virtual rows reconstructed so they render in every participant's chat timeline. |
 | 31 | **Group voice chats appear inside the group chat** — even when WhatsApp didn't write a `message` row for them, the call still shows up at its real position in the group's timeline. |
 
-### Communities & groups
+### Groups
 
 |   | Feature |
 |---|---|
-| 32 | **Community membership** with LID resolution — every member surfaces with phone JID + LID side-by-side, even when the community is privacy-restricted. |
-| 33 | **Community channel comments** — comment authors and their phone numbers resolved through the JID map even when WhatsApp only stored their LID. |
-| 34 | **Past participants reconstructed from 3 sources** — `group_past_participant`, `group_member.is_current=0`, AND message-presence inference (catches members WhatsApp's own roster purged after a long enough gap). |
-| 35 | **Owner can-post banner** on every Group Info page — explicit Yes / No with the underlying source row (`chat.participation_status`, group admin flags) so the analyst sees *why*. |
+| 32 | **Past participants reconstructed from 3 sources** — `group_past_participant`, `group_member.is_current=0`, AND message-presence inference (catches members WhatsApp's own roster purged after a long enough gap). |
+| 33 | **Owner can-post banner** on every Group Info page — explicit Yes / No with the underlying source row (`chat.participation_status`, group admin flags) so the analyst sees *why*. |
 
 ### Reports & exports
 
 |   | Feature |
 |---|---|
-| 36 | **Per-contact forensic report** (HTML or PDF) with full identity, devices, stats, calls, groups in common, mentions, reactions, media & links — choosable sections + save location. |
-| 37 | **Offline ZIP chat export** — WhatsApp-Web-style conversational viewer, opens from `file://`, no Python / server, with global cross-conversation search. |
-| 38 | **Media Forensics Dashboard** — folder-shaped offline artifact (sharded AVIF thumbnails, chunked metadata, vendored UI engine) that scales to 200k+ media rows; cascading filters, per-day histogram, in-browser CSV / XLSX / HTML export, "find every chat that shared this hash" popup. |
+| 34 | **Per-contact forensic report** (HTML or PDF) with full identity, devices, stats, calls, groups in common, mentions, reactions, media & links — choosable sections + save location. |
+| 35 | **Offline ZIP chat export** — WhatsApp-Web-style conversational viewer, opens from `file://`, no Python / server, with global cross-conversation search. |
+| 36 | **Media Forensics Dashboard** — folder-shaped offline artifact (sharded AVIF thumbnails, chunked metadata, vendored UI engine) that scales to 200k+ media rows; cascading filters, per-day histogram, in-browser CSV / XLSX / HTML export, "find every chat that shared this hash" popup. |
 
 ---
 
