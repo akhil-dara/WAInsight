@@ -20,7 +20,6 @@ Built for digital forensics teams, law-enforcement examiners, and incident respo
 
 [![Sponsor akhil-dara](https://img.shields.io/badge/Sponsor-akhil--dara-EA4AAA?logo=githubsponsors&logoColor=white&style=for-the-badge)](https://github.com/sponsors/akhil-dara)
 
-<iframe src="https://github.com/sponsors/akhil-dara/card" title="Sponsor akhil-dara" height="225" width="600" style="border: 0;"></iframe>
 
 </div>
 
