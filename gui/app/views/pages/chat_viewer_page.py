@@ -7256,7 +7256,7 @@ class ChatViewerPage(QWidget):
                 self.contact_requested.emit(row[0])
 
     def load_conversation(self, conv_id: int, display_name: str,
-                          target_msg_id: int = 0) -> None:
+                          target_msg_id: int = 0, search_keyword: str = "") -> None:
         # ---- Instant feedback: spinner up BEFORE we touch the DB ----
         # The setup work below is mostly synchronous; without this
         # call the user sees no response between double-clicking a
@@ -7514,6 +7514,19 @@ class ChatViewerPage(QWidget):
         QTimer.singleShot(400, lambda: self._build_anchors_deferred(conv_id))
         if self._is_group:
             QTimer.singleShot(350, lambda: self._load_group_analytics(Database.get(), conv_id))
+
+        if search_keyword:
+            _kw = search_keyword
+            _target_conv = conv_id
+            def _trigger_kw_search(kw=_kw, target=_target_conv):
+                if self._conv_id != target:
+                    return  # user navigated to a different chat; abort
+                self._search_bar.setVisible(True)
+                self._chat_search.blockSignals(True)
+                self._chat_search.setText(kw)
+                self._chat_search.blockSignals(False)
+                self._do_search()
+            QTimer.singleShot(400, _trigger_kw_search)
 
     def _build_anchors_deferred(self, conv_id: int) -> None:
         """Build keyset pagination anchors in background (deferred from load)."""

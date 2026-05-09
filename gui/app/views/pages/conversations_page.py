@@ -588,7 +588,7 @@ class ConversationDelegate(QStyledItemDelegate):
 
 
 class ConversationsPage(QWidget):
-    conversation_selected = Signal(int, str)
+    conversation_selected = Signal(int, str, str)  # conv_id, name, search_keyword
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1118,7 +1118,12 @@ class ConversationsPage(QWidget):
         conv_id = self._model.data(index, Qt.UserRole)
         name = self._model.data(self._model.index(index.row(), 0), Qt.UserRole + 1)
         if conv_id:
-            self.conversation_selected.emit(conv_id, name or "")
+            keyword = (
+                self._search.text().strip()
+                if self._current_search_mode == "messages"
+                else ""
+            )
+            self.conversation_selected.emit(conv_id, name or "", keyword)
 
     def refresh_for_timezone_change(self) -> None:
         self._table.viewport().update()
